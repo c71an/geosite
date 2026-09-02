@@ -124,9 +124,6 @@ def parse_rule_file(path):
             elif rule_type == "DOMAIN-SUFFIX":
                 rules.add(f"domain:{value}")
 
-            elif rule_type == "DOMAIN-KEYWORD":
-                rules.add(f"keyword:{value}")
-
     return rules
 
 
