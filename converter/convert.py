@@ -29,7 +29,7 @@ MAPPING = {
     "Binance": "Binance",
     "Google": "Google",
     "Microsoft": "Microsoft",
-    "Roblox": "Roblox",
+    "Game/Roblox": "Roblox",
     "Steam": "Steam",
     "SteamCN": "SteamCN",
     "China": "cn",
