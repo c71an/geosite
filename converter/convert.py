@@ -1,201 +1,225 @@
-import os
-import re
-import shutil
-import subprocess
 from pathlib import Path
+import subprocess
+import shutil
+import hashlib
 
-# BlackMatrix7 upstream
-BLACKMATRIX_REPO = "https://github.com/blackmatrix7/ios_rule_script.git"
-
-# V2Fly geosite builder
-V2FLY_REPO = "https://github.com/v2fly/domain-list-community.git"
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "source"
-BM7 = SOURCE / "ios_rule_script"
-V2FLY = SOURCE / "domain-list-community"
-DATA = ROOT / "data"
-CONFIG = ROOT / "config" / "rules.txt"
 
-# BlackMatrix7 folder -> geosite name
+BLACKMATRIX = SOURCE / "blackmatrix7"
+V2FLY = SOURCE / "domain-list-community"
+
+DATA = ROOT / "data"
+DIST = ROOT / "dist"
+
+
+BLACKMATRIX_REPO = (
+    "https://github.com/blackmatrix7/ios_rule_script.git"
+)
+
+V2FLY_REPO = (
+    "https://github.com/v2fly/domain-list-community.git"
+)
+
+
+# BlackMatrix7目录 -> geosite名称
 MAPPING = {
-    "Apple": "apple",
-    "Binance": "binance",
-    "Google": "google",
-    "Microsoft": "microsoft",
-    "Steam": "steam",
-    "SteamCN": "steamcn",
+    "Apple": "Apple",
+    "Binance": "Binance",
+    "Google": "Google",
+    "Microsoft": "Microsoft",
+    "Steam": "Steam",
+    "SteamCN": "SteamCN",
     "China": "cn",
 }
 
 
 def run(cmd, cwd=None):
     print("+", " ".join(str(x) for x in cmd))
-    subprocess.run(cmd, cwd=cwd, check=True)
+
+    subprocess.run(
+        cmd,
+        cwd=cwd,
+        check=True
+    )
 
 
 def clone_or_update(repo, path):
-    if path.exists():
-        run(["git", "fetch", "--depth=1", "origin"], cwd=path)
-        run(["git", "reset", "--hard", "origin/master"], cwd=path)
+    if path.exists() and (path / ".git").exists():
+        print(f"Updating {path}")
+
+        run(
+            ["git", "fetch", "--depth=1", "origin"],
+            cwd=path
+        )
+
+        run(
+            ["git", "reset", "--hard", "origin/master"],
+            cwd=path
+        )
+
     else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        run([
-            "git", "clone",
-            "--depth=1",
-            repo,
-            str(path)
-        ])
+        if path.exists():
+            shutil.rmtree(path)
+
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        run(
+            [
+                "git",
+                "clone",
+                "--depth=1",
+                repo,
+                str(path)
+            ]
+        )
 
 
-def parse_yaml_rule(line):
-    """
-    Convert BlackMatrix7 Clash classical rules:
+def clean_generated_data():
+    DATA.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    DOMAIN,example.com
-        -> full:example.com
+    for file in DATA.iterdir():
+        if file.is_file():
+            file.unlink()
 
-    DOMAIN-SUFFIX,example.com
-        -> domain:example.com
 
-    DOMAIN-KEYWORD,example
-        -> keyword:example
+def parse_rule_file(path):
+    rules = set()
 
-    Everything else is ignored.
-    """
+    with path.open(
+        "r",
+        encoding="utf-8"
+    ) as f:
 
-    line = line.strip()
+        for raw in f:
+            line = raw.strip()
 
-    if not line or line.startswith("#"):
-        return None
+            if not line.startswith("- "):
+                continue
 
-    if not line.startswith("- "):
-        return None
+            line = line[2:].strip()
 
-    line = line[2:].strip()
+            parts = line.split(",", 2)
 
-    parts = line.split(",")
+            if len(parts) < 2:
+                continue
 
-    if len(parts) < 2:
-        return None
+            rule_type = parts[0].strip()
+            value = parts[1].strip()
 
-    rule_type = parts[0].strip().upper()
-    value = parts[1].strip()
+            if not value:
+                continue
 
-    if rule_type == "DOMAIN":
-        return f"full:{value.lower()}"
+            if rule_type == "DOMAIN":
+                rules.add(f"full:{value}")
 
-    if rule_type == "DOMAIN-SUFFIX":
-        return f"domain:{value.lower()}"
+            elif rule_type == "DOMAIN-SUFFIX":
+                rules.add(f"domain:{value}")
 
-    if rule_type == "DOMAIN-KEYWORD":
-        return f"keyword:{value.lower()}"
+            elif rule_type == "DOMAIN-KEYWORD":
+                rules.add(f"keyword:{value}")
 
-    return None
+    return rules
 
 
 def convert_rule(folder, output_name):
-    source_folder = BM7 / "rule" / "Clash" / folder
+    clash_root = (
+        BLACKMATRIX
+        / "rule"
+        / "Clash"
+    )
 
-    if not source_folder.exists():
+    rule_dir = clash_root / folder
+
+    print()
+    print("=" * 60)
+    print(f"Converting: {folder}")
+    print(f"Source: {rule_dir}")
+    print("=" * 60)
+
+    if not rule_dir.exists():
+        print("Available directories:")
+
+        if clash_root.exists():
+            for item in sorted(clash_root.iterdir()):
+                if item.is_dir():
+                    print("  ", item.name)
+
         raise RuntimeError(
             f"BlackMatrix7 rule not found: {folder}"
         )
 
     rules = set()
 
-    # Important:
-    # Scan ALL yaml files, not just Folder.yaml.
-    # This handles *_Domain.yaml and other split files.
-    for yaml_file in sorted(source_folder.glob("*.yaml")):
+    yaml_files = list(
+        rule_dir.rglob("*.yaml")
+    )
 
-        # Ignore README-like files if present
-        if yaml_file.name.lower().startswith("readme"):
-            continue
-
-        print(f"Reading: {yaml_file}")
-
-        with yaml_file.open(
-            "r",
-            encoding="utf-8",
-            errors="ignore"
-        ) as f:
-
-            for line in f:
-                result = parse_yaml_rule(line)
-
-                if result:
-                    rules.add(result)
-
-    if not rules:
+    if not yaml_files:
         raise RuntimeError(
-            f"No domain rules found for {folder}"
+            f"No YAML files found in: {rule_dir}"
+        )
+
+    print(
+        f"Found {len(yaml_files)} YAML files"
+    )
+
+    for path in yaml_files:
+
+        print(
+            f"Reading: {path.relative_to(rule_dir)}"
+        )
+
+        rules.update(
+            parse_rule_file(path)
         )
 
     output = DATA / output_name
-    output.parent.mkdir(parents=True, exist_ok=True)
 
-    with output.open("w", encoding="utf-8") as f:
+    with output.open(
+        "w",
+        encoding="utf-8"
+    ) as f:
+
         for rule in sorted(rules):
             f.write(rule + "\n")
 
     print(
-        f"{folder} -> {output_name}: "
-        f"{len(rules)} rules"
+        f"Generated {output}"
+    )
+
+    print(
+        f"Rules: {len(rules)}"
     )
 
 
-def clean_generated_data():
-    DATA.mkdir(parents=True, exist_ok=True)
+def write_private():
+    output = DATA / "private"
 
-    # Remove generated BlackMatrix lists.
-    for name in MAPPING.values():
-        path = DATA / name
-        if path.exists():
-            path.unlink()
-
-
-def build():
-    clean_generated_data()
-
-    # Read requested rules
-    requested = []
-
-    with CONFIG.open(
-        "r",
+    output.write_text(
+        "domain:7kid.com\n",
         encoding="utf-8"
-    ) as f:
-        for line in f:
-            line = line.strip()
+    )
 
-            if not line or line.startswith("#"):
-                continue
+    print()
+    print("Generated custom private:")
+    print("  domain:7kid.com")
 
-            requested.append(line)
 
-    for folder in requested:
+def build_geosite():
+    DIST.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-        if folder not in MAPPING:
-            raise RuntimeError(
-                f"Unknown rule in rules.txt: {folder}"
-            )
-
-        convert_rule(
-            folder,
-            MAPPING[folder]
-        )
-
-    # Make sure private exists.
-    private = DATA / "private"
-
-    if not private.exists():
-        raise RuntimeError(
-            "data/private is missing"
-        )
-
-    # Build V2Fly geosite.dat
-    output_dir = ROOT / "dist"
-    output_dir.mkdir(exist_ok=True)
+    output = DIST / "geosite.dat"
 
     run(
         [
@@ -203,31 +227,75 @@ def build():
             "run",
             "./",
             f"--datapath={DATA}",
-            f"--outputdir={output_dir}",
+            f"--outputdir={DIST}",
             "--outputname=geosite.dat",
         ],
         cwd=V2FLY
     )
 
-    # SHA256
-    dat_file = output_dir / "geosite.dat"
+    if not output.exists():
+        raise RuntimeError(
+            "geosite.dat was not generated"
+        )
 
-    sha256 = subprocess.check_output(
-        ["sha256sum", str(dat_file)],
-        text=True
-    ).split()[0]
+    sha256 = hashlib.sha256()
 
-    (output_dir / "geosite.dat.sha256").write_text(
-        sha256 + "\n",
+    with output.open("rb") as f:
+        for chunk in iter(
+            lambda: f.read(1024 * 1024),
+            b""
+        ):
+            sha256.update(chunk)
+
+    checksum = (
+        DIST
+        / "geosite.dat.sha256"
+    )
+
+    checksum.write_text(
+        f"{sha256.hexdigest()}  geosite.dat\n",
         encoding="utf-8"
     )
 
     print()
-    print("====================================")
-    print("Build completed")
-    print("====================================")
-    print(f"Output: {dat_file}")
-    print(f"SHA256: {sha256}")
+    print("Build complete:")
+    print(f"  {output}")
+    print(f"  {checksum}")
+    print(
+        f"Size: {output.stat().st_size / 1024:.1f} KiB"
+    )
+
+
+def build():
+
+    print("Preparing source repositories...")
+
+    SOURCE.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    clone_or_update(
+        BLACKMATRIX_REPO,
+        BLACKMATRIX
+    )
+
+    clone_or_update(
+        V2FLY_REPO,
+        V2FLY
+    )
+
+    clean_generated_data()
+
+    for folder, output_name in MAPPING.items():
+        convert_rule(
+            folder,
+            output_name
+        )
+
+    write_private()
+
+    build_geosite()
 
 
 if __name__ == "__main__":
