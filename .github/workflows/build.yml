@@ -1,0 +1,94 @@
+name: Build Geosite
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Every day at 04:30 UTC
+    # = 12:30 Beijing/Taiwan time
+    - cron: "30 4 * * *"
+
+  push:
+    paths:
+      - "config/**"
+      - "converter/**"
+      - "data/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------
+      # Checkout your repository
+      # -----------------------------
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------
+      # Install Python
+      # -----------------------------
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # -----------------------------
+      # Install Go
+      # -----------------------------
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      # -----------------------------
+      # Install git
+      # -----------------------------
+
+      - name: Check environment
+        run: |
+          python --version
+          go version
+          git --version
+
+      # -----------------------------
+      # Build
+      # -----------------------------
+
+      - name: Build geosite.dat
+        run: |
+          python converter/convert.py
+
+      # -----------------------------
+      # Show result
+      # -----------------------------
+
+      - name: Check output
+        run: |
+          ls -lh dist/
+          sha256sum dist/geosite.dat
+
+      # -----------------------------
+      # Publish Release
+      # -----------------------------
+
+      - name: Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Geosite
+          prerelease: false
+          make_latest: true
+          files: |
+            dist/geosite.dat
+            dist/geosite.dat.sha256
