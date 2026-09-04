@@ -217,7 +217,7 @@ def convert_rule(folder, output_name):
 
 def write_custom():
     source = CONFIG / "custom.txt"
-    output = DATA / "custom"
+    output = DATA / "Custom"
 
     known_prefixes = ("full:", "domain:", "keyword:", "regexp:")
 
