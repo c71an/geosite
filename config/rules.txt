@@ -4,7 +4,4 @@ Apple: Apple
 Binance: Binance
 Google: Google
 Microsoft: Microsoft
-Game/Roblox: Roblox
-Steam: Steam
-SteamCN: SteamCN
 China: cn
