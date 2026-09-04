@@ -9,6 +9,7 @@ cm.steampowered.com
 steamserver.net
 #CDN/PCDN
 clngaa.com
+cyngaa.com
 ksyna.com
 bscstorage.net
 eccdnx.com
