@@ -1,0 +1,23 @@
+# 自定义域名规则，每行一条
+# 裸域名默认按 DOMAIN-SUFFIX(后缀匹配) 处理
+# 如需完整域名精确匹配，显式加 full: 前缀
+#幼儿园
+7kid.com
+#SteamCN
+full:steamcdn-a.akamaihd.net
+cm.steampowered.com
+steamserver.net
+#CDN/PCDN
+clngaa.com
+ksyna.com
+bscstorage.net
+eccdnx.com
+pinyuncloud.com
+pphimalayanrt.com
+tnkjmec.com
+smogfly.com
+manlaxy.com
+gdtstream.com
+chxyun.cn
+wmsjsteam.com
+wanwang.space

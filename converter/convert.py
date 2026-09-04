@@ -215,9 +215,9 @@ def convert_rule(folder, output_name):
     )
 
 
-def write_private():
-    source = CONFIG / "private.txt"
-    output = DATA / "private"
+def write_custom():
+    source = CONFIG / "custom.txt"
+    output = DATA / "custom"
 
     known_prefixes = ("full:", "domain:", "keyword:", "regexp:")
 
@@ -242,7 +242,7 @@ def write_private():
     )
 
     print()
-    print("Generated custom private:")
+    print("Generated custom:")
     print(f"  {source} -> {output}")
     print(f"  {len(rules)} rule(s)")
 
@@ -331,7 +331,7 @@ def build():
             output_name
         )
 
-    write_private()
+    write_custom()
 
     build_geosite()
 
