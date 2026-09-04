@@ -215,13 +215,20 @@ def convert_rule(folder, output_name):
     )
 
 
-def write_custom():
-    source = CONFIG / "custom.txt"
-    output = DATA / "Custom"
+def merge_cn_extra():
+    source = CONFIG / "cn-extra.txt"
+    target = DATA / "cn"
 
     known_prefixes = ("full:", "domain:", "keyword:", "regexp:")
 
-    rules = []
+    if not target.exists():
+        raise RuntimeError(f"目标分类不存在: {target}")
+
+    rules = set(
+        line.strip()
+        for line in target.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    )
 
     with source.open("r", encoding="utf-8") as f:
         for raw in f:
@@ -234,16 +241,16 @@ def write_custom():
             if not line.startswith(known_prefixes):
                 line = f"domain:{line}"
 
-            rules.append(line)
+            rules.add(line)
 
-    output.write_text(
-        "\n".join(rules) + "\n",
+    target.write_text(
+        "\n".join(sorted(rules)) + "\n",
         encoding="utf-8"
     )
 
     print()
-    print("Generated custom:")
-    print(f"  {source} -> {output}")
+    print("Merged cn-extra into cn:")
+    print(f"  {source} -> {target}")
     print(f"  {len(rules)} rule(s)")
 
 
@@ -331,7 +338,7 @@ def build():
             output_name
         )
 
-    write_custom()
+    merge_cn_extra()
 
     build_geosite()
 
