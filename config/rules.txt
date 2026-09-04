@@ -1,7 +1,10 @@
-Apple
-Binance
-Google
-Microsoft
-Steam
-SteamCN
-China
+# 每一行: BlackMatrix7 源目录 : geosite 分类名
+# 源目录相对于 blackmatrix7/rule/Clash/
+Apple: Apple
+Binance: Binance
+Google: Google
+Microsoft: Microsoft
+Game/Roblox: Roblox
+Steam: Steam
+SteamCN: SteamCN
+China: cn

@@ -23,17 +23,34 @@ V2FLY_REPO = (
 )
 
 
-# BlackMatrix7目录 -> geosite名称
-MAPPING = {
-    "Apple": "Apple",
-    "Binance": "Binance",
-    "Google": "Google",
-    "Microsoft": "Microsoft",
-    "Game/Roblox": "Roblox",
-    "Steam": "Steam",
-    "SteamCN": "SteamCN",
-    "China": "cn",
-}
+CONFIG = ROOT / "config"
+RULES_FILE = CONFIG / "rules.txt"
+
+
+def load_mapping():
+    """从 config/rules.txt 读取 源目录 -> geosite分类名 映射。"""
+    mapping = {}
+
+    with RULES_FILE.open("r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            source, sep, name = line.partition(":")
+            source = source.strip()
+            name = name.strip()
+
+            if not sep or not source or not name:
+                continue
+
+            mapping[source] = name
+
+    if not mapping:
+        raise RuntimeError(f"未找到有效映射: {RULES_FILE}")
+
+    return mapping
 
 
 def run(cmd, cwd=None):
@@ -199,16 +216,35 @@ def convert_rule(folder, output_name):
 
 
 def write_private():
+    source = CONFIG / "private.txt"
     output = DATA / "private"
 
+    known_prefixes = ("full:", "domain:", "keyword:", "regexp:")
+
+    rules = []
+
+    with source.open("r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+
+            if not line or line.startswith("#"):
+                continue
+
+            # 裸域名默认按 DOMAIN-SUFFIX(后缀匹配) 处理，自动补 domain: 前缀
+            if not line.startswith(known_prefixes):
+                line = f"domain:{line}"
+
+            rules.append(line)
+
     output.write_text(
-        "domain:7kid.com\n",
+        "\n".join(rules) + "\n",
         encoding="utf-8"
     )
 
     print()
     print("Generated custom private:")
-    print("  domain:7kid.com")
+    print(f"  {source} -> {output}")
+    print(f"  {len(rules)} rule(s)")
 
 
 def build_geosite():
@@ -285,7 +321,11 @@ def build():
 
     clean_generated_data()
 
-    for folder, output_name in MAPPING.items():
+    mapping = load_mapping()
+
+    print(f"Loaded {len(mapping)} mapping(s) from {RULES_FILE}")
+
+    for folder, output_name in mapping.items():
         convert_rule(
             folder,
             output_name
